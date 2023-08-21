@@ -1,25 +1,41 @@
 // Progetto di Sistemi Operativi
-#include<stdio.h>
-#include<stdlib.h>
-#include<string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 int main(int argc, const char *argv[]){
-    int n, q;
-    if(argc < 1){
-        perror("Error: Invalid_Argument\n");
+    int mw_pipe[2];
+    
+    if( ( pipe(mw_pipe) == -1)){
+        perror("Error: Pipe_Creation_Failed\n");
         return -1;
     }
 
-    for( int i = 1; i < 5; i++){
-        printf("i: %d, argv: %s\n", i, argv[i]);
-        if(strcmp(argv[i], "-n") == 0){
-            n = atoi(argv[i+1]);
-        }
-        if(strcmp(argv[i], "-q") == 0){ 
-            q = atoi(argv[i+1]);
-        }
+    pid_t masterWorker_pid = fork();
+
+    if(masterWorker_pid == -1){
+        perror("Error: Fork_Error (MasterWorker)\n");
+        return -1;
+    }
+    else if(masterWorker_pid == 0){
+        // Processo figlio MasterWorker
+
+        close(mw_pipe[1]);
+        dup2(mw_pipe[0], STDIN_FILENO);
+        execl("./MasterWorker", "MasterWorker", NULL);
+        perror("Exec (MasterWorker) failed");
+        return -1;
+    }
+    else{
+        // Processo padre Main
+        close(mw_pipe[0]);
+
+        write(mw_pipe[1], argv, argc + 1);            
+
+        wait(NULL);
     }
 
-    
+    return 0;
     
 }
