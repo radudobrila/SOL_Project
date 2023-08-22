@@ -20,7 +20,7 @@ int main(int argc, const char *argv[]){
     }
     else if(masterWorker_pid == 0){
         // Processo figlio MasterWorker
-
+        
         close(mw_pipe[1]);
         dup2(mw_pipe[0], STDIN_FILENO);
         execl("./MasterWorker", "MasterWorker", NULL);
