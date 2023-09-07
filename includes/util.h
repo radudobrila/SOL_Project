@@ -148,4 +148,7 @@ static inline int TRYLOCK(pthread_mutex_t* l) {
   return r;	
 }
 
+
+ssize_t readn(int fd, void *ptr, size_t n);
+ssize_t writen(int fd, void *ptr, size_t n);
 #endif /* _UTIL_H */

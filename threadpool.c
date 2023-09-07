@@ -48,11 +48,16 @@ static void *workerpool_thread(void *threadpool) {
         task.arg = pool->pending_queue[pool->head].arg;
 
         pool->head++; pool->count--;
+
+        if(pool->count < abs(pool->queue_size)) {
+        pthread_cond_signal(&(pool->queue_not_full));
+        }
+
         pool->head = (pool->head == abs(pool->queue_size)) ? 0 : pool->head;
 
-	pool->taskonthefly++;
+	    pool->taskonthefly++;
         UNLOCK_RETURN(&(pool->lock), NULL);
-
+        printf("(Thread): %d,COUNT: %d, QUEUE SIZE: %d, ATTUALMENTE: %d\n", myid, pool->count, pool->queue_size, pool->taskonthefly );
         // eseguo la funzione 
         (*(task.fun))(task.arg);
 	
@@ -108,7 +113,8 @@ threadpool_t *createThreadPool(int numthreads, int pending_size) {
 	return NULL;
     }
     if ((pthread_mutex_init(&(pool->lock), NULL) != 0) ||
-	(pthread_cond_init(&(pool->cond), NULL) != 0))  {
+    (pthread_cond_init(&(pool->cond), NULL) != 0) ||
+    (pthread_cond_init(&(pool->queue_not_full), NULL) != 0)) {
 	free(pool->threads);
 	free(pool->pending_queue);
 	free(pool);
@@ -168,9 +174,12 @@ int addToThreadPool(threadpool_t *pool, void (*f)(void *), void *arg) {
 
     // coda piena o in fase di uscita
     if (pool->count >= queue_size || pool->exiting)  {
-      UNLOCK_RETURN(&(pool->lock),-1);
-      return 1; // esco con valore "coda piena"
+      //UNLOCK_RETURN(&(pool->lock),-1);
+      printf("entro dentro coda piena\n");
+      pthread_cond_wait(&(pool->queue_not_full), &(pool->lock));
+      //return 1; // esco con valore "coda piena"
     }
+    
     
     if (pool->taskonthefly >= pool->numthreads) {
 	if (nopending) { 
@@ -181,6 +190,7 @@ int addToThreadPool(threadpool_t *pool, void (*f)(void *), void *arg) {
 	    return 1;  // esco con valore "coda piena"
 	}
     } 
+    
     
     pool->pending_queue[pool->tail].fun = f;
     pool->pending_queue[pool->tail].arg = arg;
