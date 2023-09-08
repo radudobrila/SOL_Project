@@ -30,7 +30,6 @@ void * worker(void *arg){
     client_address.sun_family = AF_UNIX;
     strcpy(client_address.sun_path, "./farm.sck");
 
-
     fp = fopen(filename, "rb");
 
     if(fp == NULL){
@@ -50,7 +49,7 @@ void * worker(void *arg){
     }
     total_sum += value * riga;
     riga++;
-}
+    }
 
     //printf("(Client): La somma dei valori da inviare nel file '%s' è: %ld\n",(char *) arg, total_sum);
 
@@ -84,7 +83,7 @@ void * worker(void *arg){
     return 0;
 }
 
-void traverseDirectory(const char *path, threadpool_t *myPool) {
+void traverseDirectory(const char *path, threadpool_t *myPool, int t) {
     DIR *dir = opendir(path);
     
     if (!dir) {
@@ -103,7 +102,7 @@ void traverseDirectory(const char *path, threadpool_t *myPool) {
 			strncat(entryPath, path, strnlen(path, MAX_PATH_NAME));
 			strncat(entryPath, "/", 2);
 			strncat(entryPath, entry->d_name, strnlen(entry->d_name, MAX_PATH_NAME));
-            traverseDirectory(entryPath, myPool);
+            traverseDirectory(entryPath, myPool, t);
 			free(entryPath);
         } else if (entry->d_type == DT_REG) {
             size_t len = strlen(entry->d_name);
@@ -115,14 +114,13 @@ void traverseDirectory(const char *path, threadpool_t *myPool) {
 				strncat(entryPath, path, strnlen(path, MAX_PATH_NAME));
 				strncat(entryPath, "/", 2);
 				strncat(entryPath, entry->d_name, strnlen(entry->d_name, MAX_PATH_NAME));
-                int x = addToThreadPool(myPool, (void*) worker, entryPath);
-                if(x == 1){
-                    printf("Qua è piena\n");
-                }
+                addToThreadPool(myPool, (void*) worker, entryPath);
+                usleep(t * 1000);
+                //free(entryPath);
             }
         }
     }
-
+    free(entry);
     closedir(dir);
 }
 
@@ -141,30 +139,32 @@ int main(int argc, char *argv[]){
         return -1;
     }
 
-    int opt , n = 2, q = 5, flag = 0;
-    char directory[256];
+    int opt , n = 4, q = 8,t = 0, flag = 0;
+    char directory[255];
     
     while((opt = getopt(argc, argv, "n:q:d:t:")) != -1){
         switch (opt)
         {
         case 'n': 
             n = arg_int(optarg);
-            printf("N = %d\n", n);
+            if(n < 1){
+                return -1;
+            }
         break;
         case 'q':
             q = arg_int(optarg);
-            printf("q = %d\n",q);
+            if(q < 1){
+                return -1;
+            }
         break;
         case 'd':
             strcpy(directory,optarg);
             flag = 1;
         break;
         case 't':
-            printf("t = %d\n",arg_int(optarg));
-        break;
-        case ':': {
-                printf("l'opzione -%c richiede un argomento\n", optopt);}
-                return 0;
+            if(t < 0){
+                return -1;
+            }
         break;
         case '?': {
                 printf("l'opzione -%c non e' gestita\n", optopt);}
@@ -172,38 +172,51 @@ int main(int argc, char *argv[]){
         break;
 
         default:
-            break;
+            abort();
         }
     }
-
+/*
     pid_t pid = fork();
 
     if(pid == 0){
         execv("./collector", 0);
     }
-
+*/
     sleep(1);
-
     threadpool_t *myPool = createThreadPool(n, q); 
 
 
     for (int i = optind; i < argc; i++) {
+            if (strcmp(argv[i], "-d") == 0) {
+                strcpy(directory, argv[i+1]);
+                flag = 1;
+            }
+            if (strcmp(argv[i], "-n") == 0) {
+                n = atoi(argv[i+1]);
+            }
+            if (strcmp(argv[i], "-q") == 0) {
+                q = atoi(argv[i+1]);
+            }
+            if (strcmp(argv[i], "-t") == 0) {
+                t = atoi(argv[i+1]);
+            }
         const char *filename = argv[i];
         size_t len = strlen(filename);
         size_t ext_len = strlen(ext);
 
         if (len > ext_len && strcmp(filename + len - ext_len, ext) == 0) {
             int x = addToThreadPool(myPool,(void *) worker, argv[i]);
+            usleep(t * 1000);
         }
     }
 
     if(flag != 0) {
-        //printf("Nome Dir: %s\n", directory);
-        traverseDirectory(directory, myPool);
+       traverseDirectory(directory, myPool,  t);
     }
     
-	sleep(5);
+	//sleep(2);
+    //addToThreadPool(myPool,(void *) worker, "Fine");
     destroyThreadPool(myPool, 0);
-        
+    sleep(3);
     return 0;
 }

@@ -14,11 +14,19 @@
 #define SOCKET_MAX_LEN 1024
 
 typedef struct orderedList{
-    char path[256];
+    char path[255];
     long val;
     struct orderedList *prev;
     struct orderedList *next;
 }orderedList;
+
+void freeOrderedList(orderedList *myList) {
+    while (myList != NULL) {
+        orderedList *temp = myList;
+        myList = myList->next;
+        free(temp);
+    }
+}
 
 void printOrderedList(orderedList *myList) {
     printf("Ordered List:\n");
@@ -92,17 +100,19 @@ int main(int argc, char *argv[]){
     FD_ZERO(&read_fds);
     FD_SET(server_socket, &read_fds);
     int i = 0;
-    while (i < 10) {
+    struct timeval tv = {3, 0};   
+    int ret;
+    while (1) {
         fd_set temp_fds = read_fds;
-        if (select(max_fd + 1, &temp_fds, NULL, NULL, NULL) == -1) {
+        if ((ret = select(max_fd + 1, &temp_fds, NULL, NULL, &tv))== -1) {
             perror("Select_Error\n");
             return -1;
-        }
+        } else if(ret == 0) break;
 
         for (int fd = 0; fd <= max_fd; fd++) {
             if (FD_ISSET(fd, &temp_fds)) {
                 if (fd == server_socket) { // Nuova connessione in arrivo
-                    int new_socket = accept(server_socket, NULL, NULL);
+                    int new_socket = accept(server_socket, NULL, 0);
                     if (new_socket == -1) {
                         perror("Accept_Error\n");
                     } else {
@@ -136,23 +146,22 @@ int main(int argc, char *argv[]){
                     addSorted(&MyList, nuovo);
                     //printf("(SERVER): Letto: P: %s \n V: %ld\n", nuovo->path, nuovo->val);
                     
-                    fflush(stdout);
-                    int exit_condition = 1; 
-                    if (exit_condition) {
+                    //fflush(stdout);
                     FD_CLR(fd, &read_fds);
                     close(fd);
                     i++;
-                    //printf("(Server): Connessione chiusa...\n");
-                    }
+                   //printf("(Server): Connessione chiusa...\n");
+                    
                 }
             }
         }
     }
-   
+    
     printOrderedList(MyList);
     close(server_socket);
-
     unlink("./farm.sck");
+    freeOrderedList(MyList);
+    sleep(3);
     return 0;
 
 }
